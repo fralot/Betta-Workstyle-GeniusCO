@@ -2,7 +2,7 @@
 Este proyecto es una aplicación web desarrollada en Flask que permite verificar los datos de los usuarios (emails) que realizaron las pruebas de **Workstyle** y **Genius GO** en la plataforma Betta. La aplicación procesa un archivo CSV con una lista de emails, junto con el número de la compañía (proceso) y la sesión de login, para obtener los resultados y generar un archivo CSV con la información procesada.
 
 Link:
-[Deploy App](betta-workstyle-geniusco-h3btaedgasdtbwgj.canadacentral-01.azurewebsites.net)
+[Deploy App](https://betta-workstyle-geniusco-h3btaedgasdtbwgj.canadacentral-01.azurewebsites.net/)
 
 ## Funcionalidades
 1. Carga de datos:
