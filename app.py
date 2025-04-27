@@ -10,12 +10,12 @@ app = Flask(__name__)
 
 # Configuración base
 BASE_URL = "https://conheco.bettha.com"
-progress = {"current": 0, "total": 0}  # Variable global para el progreso
-resultados_global = []  # Variable global para almacenar los resultados
+progress = {"current": 0, "total": 0}
+resultados_global = []
 
-async def get_representative_id(session, email, processo, session_cookies):
+async def get_representative_id(session, email, empresa, session_cookies):
     """Obtiene el ID del representante de la empresa a partir del email"""
-    url = f"{BASE_URL}/admin/companies/{processo}/company_representatives"
+    url = f"{BASE_URL}/admin/companies/{empresa}/company_representatives"
     params = {
         "filters[name]": "",
         "filters[email]": email,
@@ -35,12 +35,11 @@ async def get_representative_id(session, email, processo, session_cookies):
         if not link:
             return None
         
-        # Extrae el ID de la URL del enlace
         return link["href"].split("/")[-1]
 
-async def get_preenchimento_values(session, rep_id, processo, session_cookies):
+async def get_preenchimento_values(session, rep_id, empresa, session_cookies):
     """Obtiene los valores de 'Preenchimento' desde la página de detalles"""
-    url = f"{BASE_URL}/admin/companies/{processo}/company_representatives/{rep_id}"
+    url = f"{BASE_URL}/admin/companies/{empresa}/company_representatives/{rep_id}"
     
     async with session.get(url, cookies=session_cookies) as response:
         if response.status != 200:
@@ -52,36 +51,35 @@ async def get_preenchimento_values(session, rep_id, processo, session_cookies):
         preenchimento_values = []
         for table in tables:
             row = table.find("tbody").find("tr")
-            td_preenchimento = row.find_all("td")[1].text.strip()  # Segunda columna
+            td_preenchimento = row.find_all("td")[1].text.strip()
             preenchimento_values.append(td_preenchimento)
         
         return preenchimento_values if len(preenchimento_values) == 2 else (None, None)
 
-async def fetch_data_for_email(session, email, processo, session_cookies, total_emails, lock):
+async def fetch_data_for_email(session, email, empresa, session_cookies, total_emails, lock):
     """Procesa un email y retorna un diccionario con los resultados"""
-    rep_id = await get_representative_id(session, email, processo, session_cookies)
+    rep_id = await get_representative_id(session, email, empresa, session_cookies)
     if not rep_id:
         result = {"email": email, "genius_co": None, "workstyle": None}
     else:
-        genius_co, workstyle = await get_preenchimento_values(session, rep_id, processo, session_cookies)
+        genius_co, workstyle = await get_preenchimento_values(session, rep_id, empresa, session_cookies)
         result = {"email": email, "genius_co": genius_co, "workstyle": workstyle}
-        # print({"email": email, "genius_co": genius_co, "workstyle": workstyle})
-    # Actualiza el contador de forma segura
+
     async with lock:
         progress["current"] += 1
         print(f"Progreso: {progress['current']}/{total_emails} emails procesados.")
     
     return result
 
-async def fetch_data_for_emails(emails, processo, session_cookies):
+async def fetch_data_for_emails(emails, empresa, session_cookies):
     """Procesa una lista de emails de forma asíncrona y retorna los resultados"""
     total_emails = len(emails)
     progress["current"] = 0
     progress["total"] = total_emails
-    lock = asyncio.Lock()  # Lock para proteger el acceso al contador
+    lock = asyncio.Lock()
 
     async with aiohttp.ClientSession() as session:
-        tasks = [fetch_data_for_email(session, email, processo, session_cookies, total_emails, lock) for email in emails]
+        tasks = [fetch_data_for_email(session, email, empresa, session_cookies, total_emails, lock) for email in emails]
         return await asyncio.gather(*tasks)
 
 @app.route('/')
@@ -92,36 +90,34 @@ def index():
 @app.route('/process', methods=['POST'])
 def process_csv():
     """Procesa el archivo CSV y redirige a la página de progreso"""
-    global resultados_global  # Declarar la variable global para almacenar los resultados
+    global resultados_global
 
     if 'file' not in request.files or request.files['file'].filename == '':
         return "No se proporcionó un archivo CSV", 400
 
     file = request.files['file']
-    processo = request.form.get('processo')
+    empresa = request.form.get('empresa')
     session_value = request.form.get('session')
 
-    if not processo or not session_value:
-        return "Faltan valores para 'Processo' o 'Session'", 400
+    if not empresa or not session_value:
+        return "Faltan valores para 'Empresa' o 'Session'", 400
 
-    # Leer emails del archivo CSV
     emails = []
     csv_file = file.stream.read().decode("utf-8").splitlines()
     reader = csv.reader(csv_file)
-    next(reader)  # Saltar el encabezado
+    next(reader)
     for row in reader:
-        emails.append(row[0])  # Asume que los emails están en la primera columna
+        emails.append(row[0])
 
-    # Configurar cookies
     session_cookies = {"_assessmentsApp_session": session_value}
 
-    def run_async_task(emails, processo, cookies):
+    def run_async_task(emails, empresa, cookies):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        return loop.run_until_complete(fetch_data_for_emails(emails, processo, cookies))
+        return loop.run_until_complete(fetch_data_for_emails(emails, empresa, cookies))
 
     executor = ThreadPoolExecutor()
-    future = executor.submit(run_async_task, emails, processo, session_cookies)
+    future = executor.submit(run_async_task, emails, empresa, session_cookies)
 
     def on_complete(f):
         global resultados_global
@@ -137,9 +133,8 @@ def process_csv():
 @app.route('/download')
 def download():
     """Muestra la página de progreso o genera el archivo CSV si el procesamiento ha terminado"""
-    global resultados_global  # Declarar la variable global para acceder a los resultados
+    global resultados_global
 
-    # Verificar si el procesamiento ha terminado
     if progress["current"] < progress["total"]:
         return render_template('download.html', progress=progress)
     
@@ -147,14 +142,13 @@ def download():
 
 @app.route('/completed')
 def completed():
-    # Generar el archivo CSV en memoria
+
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=["email", "genius_co", "workstyle"])
     writer.writeheader()
-    writer.writerows(resultados_global)  # Usar los resultados almacenados en la variable global
+    writer.writerows(resultados_global)
     output.seek(0)
 
-    # Enviar el archivo al cliente
     return send_file(
         io.BytesIO(output.getvalue().encode('utf-8')),
         mimetype='text/csv',

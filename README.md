@@ -49,6 +49,7 @@ Betta/
 │   ├── templates/
 │   │   ├── index.html        # Formulario para cargar el archivo CSV
 │   │   ├── download.html     # Página de progreso
+│   │   ├── completed.html     # Página para baixar o resultado.csv
 │   └── static/               # Archivos estáticos (opcional)
 ```
 
