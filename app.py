@@ -143,6 +143,10 @@ def download():
     if progress["current"] < progress["total"]:
         return render_template('download.html', progress=progress)
     
+    return render_template('completed.html')
+
+@app.route('/completed')
+def completed():
     # Generar el archivo CSV en memoria
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=["email", "genius_co", "workstyle"])
